@@ -11,6 +11,7 @@ final class Router
 {
     private array $routes = [];
     private array $middleware = [];
+    private string $prefix = '';
     private string $notFoundHandler = '';
 
     public function get(string $path, callable|array|string $action, array $middleware = []): void
@@ -51,6 +52,12 @@ final class Router
     {
         $previousMiddleware = $this->middleware;
         $previousNotFound = $this->notFoundHandler;
+        $previousPrefix = $this->prefix;
+        
+        if (isset($attributes['prefix'])) {
+            $this->prefix = rtrim($this->prefix, '/') . '/' . trim((string)$attributes['prefix'], '/');
+            $this->prefix = '/' . trim($this->prefix, '/');
+        }
         
         if (isset($attributes['middleware'])) {
             $this->middleware = array_merge($this->middleware, (array)$attributes['middleware']);
@@ -63,6 +70,7 @@ final class Router
         $callback($this);
         
         $this->middleware = $previousMiddleware;
+        $this->prefix = $previousPrefix;
         $this->notFoundHandler = $previousNotFound;
     }
 
@@ -83,12 +91,20 @@ final class Router
             $action = explode('@', $action, 2);
         }
         
+        $fullPath = $this->normalizePath($this->prefix . '/' . ltrim($path, '/'));
+
         $this->routes[] = [
             'method' => $method,
-            'path' => $path,
+            'path' => $fullPath,
             'action' => $action,
             'middleware' => array_merge($this->middleware, $middleware),
         ];
+    }
+
+    private function normalizePath(string $path): string
+    {
+        $path = '/' . trim($path, '/');
+        return $path === '/' ? '/' : rtrim($path, '/');
     }
 
     public function dispatch(Request $request): mixed
@@ -207,10 +223,31 @@ final class Router
                 throw new \RuntimeException("Method not found: {$controller}::{$method}");
             }
             
-            return $instance->$method($request, ...$params);
+            $arguments = $this->resolveActionArguments([$instance, $method], $request, $params);
+            return $instance->$method(...$arguments);
         }
 
         throw new \RuntimeException('Invalid action format');
+    }
+
+
+    private function resolveActionArguments(callable $action, Request $request, array $params): array
+    {
+        $reflection = is_array($action)
+            ? new \ReflectionMethod($action[0], $action[1])
+            : new \ReflectionFunction($action);
+
+        $parameters = $reflection->getParameters();
+        $arguments = [];
+
+        if (!empty($parameters)) {
+            $type = $parameters[0]->getType();
+            if ($type instanceof \ReflectionNamedType && $type->getName() === Request::class) {
+                $arguments[] = $request;
+            }
+        }
+
+        return array_merge($arguments, $params);
     }
 
     public function getRoutes(): array

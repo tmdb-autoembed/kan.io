@@ -34,8 +34,7 @@ final class Auth
 
     public static function attempt(string $email, string $password, bool $remember = false): bool
     {
-        $user = (new UserModel())->where('email', $email);
-        $user = $user[0] ?? null;
+        $user = (new UserModel())->findByEmail($email);
         
         if ($user && password_verify($password, $user['password'])) {
             if ($user['status'] !== 'active') {
@@ -141,8 +140,7 @@ final class Auth
         }
         
         $hash = hash('sha256', $token);
-        $user = (new UserModel())->where('remember_token', $hash);
-        $user = $user[0] ?? null;
+        $user = (new UserModel())->findBy('remember_token', $hash);
         
         if ($user) {
             unset($user['password']);

@@ -141,7 +141,7 @@ $router->group(['prefix' => '/api'], function($router) {
     $router->get('/themes/{slug}', 'ThemeHub\Controllers\Api\ApiController@theme');
     $router->get('/categories', 'ThemeHub\Controllers\Api\ApiController@categories');
     $router->get('/search', 'ThemeHub\Controllers\Api\ApiController@search');
-    $router->get('/reviews/{slug}', 'ThemeHub\Controllers\Api\ApiController@reviews');
+    $router->get('/reviews/{slug}', 'ThemeHub\Controllers\Api\ExtendedApiController@reviews');
     $router->get('/settings', 'ThemeHub\Controllers\Api\ApiController@settings');
     
     // Auth API
