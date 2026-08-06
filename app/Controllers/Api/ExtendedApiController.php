@@ -22,7 +22,7 @@ final class ExtendedApiController extends Controller
         if ($role === 'admin') {
             $orders = (new Order())->all();
         } else {
-            $orders = (new Order())->where('user_id', (string)$userId);
+            $orders = (new Order())->where('user_id', (string)$userId)->get();
         }
         
         json([
@@ -42,7 +42,7 @@ final class ExtendedApiController extends Controller
     {
         auth_require();
         
-        $items = (new \ThemeHub\Models\Wishlist())->where('user_id', (string)auth_user()['id']);
+        $items = (new \ThemeHub\Models\Wishlist())->where('user_id', (string)auth_user()['id'])->get();
         
         json([
             'success' => true,
@@ -61,7 +61,7 @@ final class ExtendedApiController extends Controller
         $themeId = (int)$this->input('theme_id');
         
         $existing = (new \ThemeHub\Models\Wishlist())->where('user_id', (string)auth_user()['id'])
-            ->where('theme_id', (string)$themeId);
+            ->where('theme_id', (string)$themeId)->get();
         
         if (empty($existing)) {
             (new \ThemeHub\Models\Wishlist())->create([
@@ -80,8 +80,12 @@ final class ExtendedApiController extends Controller
         
         $themeId = (int)$this->input('theme_id');
         
-        (new \ThemeHub\Models\Wishlist())->where('user_id', (string)auth_user()['id'])
-            ->where('theme_id', (string)$themeId);
+        $items = (new \ThemeHub\Models\Wishlist())->where('user_id', (string)auth_user()['id'])
+            ->where('theme_id', (string)$themeId)->get();
+
+        foreach ($items as $item) {
+            (new \ThemeHub\Models\Wishlist())->delete((int)$item['id']);
+        }
         
         json(['success' => true, 'message' => 'Removed from wishlist']);
     }
@@ -115,7 +119,7 @@ final class ExtendedApiController extends Controller
                 'thumbnail' => upload($theme['thumbnail']),
                 'rating' => (float)$theme['rating'],
                 'sales' => (int)$theme['sales'],
-            ], $themes)
+            ], $themes->get())
         ]);
     }
 
@@ -140,7 +144,7 @@ final class ExtendedApiController extends Controller
         }
         
         $reviews = (new Review())->where('theme_id', (string)$theme['id'])
-            ->where('status', 'approved');
+            ->where('status', 'approved')->get();
         
         json([
             'success' => true,

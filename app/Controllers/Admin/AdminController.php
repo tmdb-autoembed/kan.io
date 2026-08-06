@@ -203,7 +203,7 @@ final class AdminController extends Controller
         $page = (int)$this->input('page', 1);
         $role = $this->input('role', 'customer');
         
-        $users = (new UserModel())->where('role', $role);
+        $users = (new UserModel())->where('role', $role)->get();
         $paginated = paginate(count($users), $page, 20);
         
         return $this->view('admin.customers.index', [
