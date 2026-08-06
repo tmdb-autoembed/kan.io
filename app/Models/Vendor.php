@@ -1,4 +1,4 @@
 <?php
-namespace App\Models;
-use App\Core\Model;
+namespace ThemeHub\Models;
+use ThemeHub\Core\Model;
 class Vendor extends Model { protected string $table='vendors'; }

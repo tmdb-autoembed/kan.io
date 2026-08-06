@@ -1,45 +1,155 @@
 <?php
-namespace App\Core;
+declare(strict_types=1);
 
+namespace ThemeHub\Core;
+
+use ThemeHub\Models\UserModel;
+
+/**
+ * Authentication Manager
+ * Handles user authentication, sessions, and JWT
+ */
 final class Auth
 {
     public static function user(): ?array
     {
-        return $_SESSION['user'] ?? null;
+        return Session::get('user') ?? null;
     }
 
-    public static function attempt(string $email, string $password): bool
+    public static function id(): ?int
     {
-        $statement = Database::pdo()->prepare('select * from users where email=? and status="active"');
-        $statement->execute([$email]);
-        $user = $statement->fetch();
+        $user = self::user();
+        return $user ? (int)$user['id'] : null;
+    }
+
+    public static function check(): bool
+    {
+        return self::user() !== null;
+    }
+
+    public static function guest(): bool
+    {
+        return !self::check();
+    }
+
+    public static function attempt(string $email, string $password, bool $remember = false): bool
+    {
+        $user = (new UserModel())->where('email', $email);
+        $user = $user[0] ?? null;
+        
         if ($user && password_verify($password, $user['password'])) {
-            session_regenerate_id(true);
-            $_SESSION['user'] = $user;
+            if ($user['status'] !== 'active') {
+                return false;
+            }
+            
+            unset($user['password']);
+            Session::set('user', $user);
+            Session::regenerate(true);
+            
+            if ($remember) {
+                $token = random_string(64);
+                (new UserModel())->update($user['id'], ['remember_token' => hash('sha256', $token)]);
+                setcookie('remember_token', $token, time() + 86400 * 30, '/', '', false, true);
+            }
+            
+            log_message('info', "User logged in: {$user['email']}");
             return true;
         }
-
+        
+        log_message('warning', "Failed login attempt for: {$email}");
         return false;
     }
 
-    public static function require(string $role): void
+    public static function login(array $user): void
     {
-        $user = self::user();
-        if (!$user || ($role !== 'auth' && $user['role'] !== $role && $user['role'] !== 'admin')) {
-            header('Location: /login');
-            exit;
-        }
+        unset($user['password']);
+        Session::set('user', $user);
+        Session::regenerate(true);
     }
 
     public static function logout(): void
     {
-        unset($_SESSION['user']);
+        $user = self::user();
+        if ($user) {
+            (new UserModel())->update($user['id'], ['remember_token' => null]);
+        }
+        
+        Session::destroy();
+        setcookie('remember_token', '', time() - 3600, '/');
+        
+        log_message('info', 'User logged out');
+    }
+
+    public static function require(string|array $roles = []): void
+    {
+        if (!self::check()) {
+            if (is_ajax() || is_api()) {
+                json(['error' => 'Unauthorized'], 401);
+            }
+            redirect('/login');
+        }
+        
+        if (!empty($roles) && !self::hasRole($roles)) {
+            if (is_ajax() || is_api()) {
+                json(['error' => 'Forbidden'], 403);
+            }
+            abort(403, 'Forbidden');
+        }
+    }
+
+    public static function hasRole(string|array $roles): bool
+    {
+        $user = self::user();
+        if (!$user) {
+            return false;
+        }
+        
+        $roles = (array) $roles;
+        return in_array($user['role'], $roles, true);
     }
 
     public static function apiUser(string $token): ?array
     {
-        $statement = Database::pdo()->prepare("select u.* from api_tokens t join users u on u.id=t.user_id where t.token_hash=? and t.expires_at>datetime('now')");
-        $statement->execute([hash('sha256', $token)]);
-        return $statement->fetch() ?: null;
+        $payload = verify_jwt($token, config('jwt.secret', env('JWT_SECRET', 'change-me-jwt-secret')));
+        
+        if (!$payload) {
+            return null;
+        }
+        
+        return (new UserModel())->find((int)$payload['sub']);
+    }
+
+    public static function generateApiToken(int $userId, int $expiresIn = 86400 * 30): string
+    {
+        $secret = config('jwt.secret', env('JWT_SECRET', 'change-me-jwt-secret'));
+        $payload = [
+            'sub' => $userId,
+            'iat' => time(),
+            'exp' => time() + $expiresIn,
+            'type' => 'api'
+        ];
+        
+        return generate_jwt($payload, $secret);
+    }
+
+    public static function attemptFromRememberToken(): bool
+    {
+        $token = $_COOKIE['remember_token'] ?? null;
+        
+        if (!$token) {
+            return false;
+        }
+        
+        $hash = hash('sha256', $token);
+        $user = (new UserModel())->where('remember_token', $hash);
+        $user = $user[0] ?? null;
+        
+        if ($user) {
+            unset($user['password']);
+            Session::set('user', $user);
+            return true;
+        }
+        
+        return false;
     }
 }

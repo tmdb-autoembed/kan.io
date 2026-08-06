@@ -1,7 +1,11 @@
 <?php
+declare(strict_types=1);
+
 return [
-    'connection' => envv('DB_CONNECTION', 'sqlite'),
-    'sqlite' => [
-        'path' => envv('DB_DATABASE', dirname(__DIR__) . '/database/marketplace.sqlite'),
-    ],
+    'driver' => env('DB_CONNECTION', 'sqlite'),
+    'host' => env('DB_HOST', 'localhost'),
+    'port' => env('DB_PORT', '3306'),
+    'database' => env('DB_DATABASE', 'themehub'),
+    'username' => env('DB_USERNAME', 'root'),
+    'password' => env('DB_PASSWORD', ''),
 ];

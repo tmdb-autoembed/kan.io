@@ -1,30 +1,72 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * ThemeHub Bootstrap & Autoloader
+ */
+
+// Application constants
+define('APP_ROOT', dirname(__DIR__));
+define('APP_PATH', APP_ROOT . '/app');
+define('CONFIG_PATH', APP_ROOT . '/config');
+define('STORAGE_PATH', APP_ROOT . '/storage');
+define('PUBLIC_PATH', APP_ROOT . '/public');
+define('UPLOAD_PATH', PUBLIC_PATH . '/uploads');
+define('VIEW_PATH', APP_PATH . '/Views');
+
+// Load .env file
+$envFile = APP_ROOT . '/.env';
+if (is_file($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (str_starts_with(trim($line), '#') || strpos($line, '=') === false) {
+            continue;
+        }
+        [$key, $value] = explode('=', $line, 2);
+        $key = trim($key);
+        $value = trim($value);
+        if (!putenv("{$key}={$value}")) {
+            $_ENV[$key] = $value;
+        }
+    }
+}
+
+// Autoloader
 spl_autoload_register(function (string $class): void {
-    $prefix = 'App\\';
+    $prefix = 'ThemeHub\\';
+    $baseDir = APP_PATH . '/';
+    
     if (str_starts_with($class, $prefix)) {
-        $path = __DIR__ . '/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
-        if (is_file($path)) require $path;
+        $relativeClass = substr($class, strlen($prefix));
+        $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+        if (is_file($file)) {
+            require $file;
+        }
     }
 });
 
-function envv(string $key, mixed $default = null): mixed {
-    static $loaded = false;
-    if (!$loaded && is_file(dirname(__DIR__) . '/.env')) {
-        foreach (file(dirname(__DIR__) . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
-            if ($line === '' || str_starts_with(trim($line), '#') || !str_contains($line, '=')) continue;
-            [$k, $v] = explode('=', $line, 2);
-            $_ENV[trim($k)] = trim($v, " \t\n\r\0\x0B\"");
-        }
-        $loaded = true;
-    }
-    return $_ENV[$key] ?? getenv($key) ?: $default;
+// Load helpers
+$helpers = glob(APP_PATH . '/Helpers/*.php');
+foreach ($helpers as $helper) {
+    require $helper;
 }
-function config(string $key, mixed $default = null): mixed {
-    [$file, $name] = array_pad(explode('.', $key, 2), 2, null);
-    $data = require dirname(__DIR__) . "/config/{$file}.php";
-    return $name ? ($data[$name] ?? $default) : $data;
+
+// Load config
+$configFiles = glob(CONFIG_PATH . '/*.php');
+foreach ($configFiles as $configFile) {
+    $key = basename($configFile, '.php');
+    $GLOBALS['config'][$key] = require $configFile;
 }
-function e(mixed $value): string { return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8'); }
-function url(string $path = ''): string { return rtrim((string)config('app.url'), '/') . '/' . ltrim($path, '/'); }
+
+// Start session
+if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'lifetime' => 86400 * 30,
+        'path' => '/',
+        'domain' => '',
+        'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
+    session_start();
+}
