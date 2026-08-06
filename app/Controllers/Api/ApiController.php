@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace ThemeHub\Controllers\Api;
 
-use ThemeHub\Core\Controller;
+use ThemeHub\Core\{Auth, Controller};
 use ThemeHub\Models\{Theme, Category, Review, Order, UserModel};
 
 /**
@@ -60,7 +60,7 @@ final class ApiController extends Controller
 
     public function categories(): void
     {
-        $categories = (new Category())->where('status', 'active');
+        $categories = (new Category())->where('status', 'active')->get();
         
         json([
             'success' => true,
@@ -96,7 +96,7 @@ final class ApiController extends Controller
         
         json([
             'success' => true,
-            'data' => array_map(fn($theme) => $this->transformTheme($theme), $themes),
+            'data' => array_map(fn($theme) => $this->transformTheme($theme), $themes->get()),
         ]);
     }
 
@@ -181,7 +181,7 @@ final class ApiController extends Controller
             $data['last_updated'] = $theme['last_updated'];
             $data['developer'] = (new UserModel())->find((int)$theme['developer_id']);
             $data['category'] = (new Category())->find((int)$theme['category_id']);
-            $data['reviews'] = (new Review())->where('theme_id', (string)$theme['id']);
+            $data['reviews'] = (new Review())->where('theme_id', (string)$theme['id'])->get();
         }
         
         return $data;

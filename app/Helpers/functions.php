@@ -431,7 +431,7 @@ if (!function_exists('csrf_verify')) {
 // Check authentication
 if (!function_exists('auth_check')) {
     function auth_check(): bool {
-        return !empty($_SESSION['user_id']);
+        return !empty($_SESSION['user']) && is_array($_SESSION['user']);
     }
 }
 
